@@ -1,0 +1,32 @@
+{
+  "name": "grpc-starter-client",
+  "version": "1.0.0",
+  "license": "MIT OR Apache-2.0",
+  "author": "Lucas Vasilakopoulos <lucasyvas@gmail.com>",
+  "scripts": {
+    "postinstall": "npm run proto",
+    "clean": "rimraf lib/ node_modules/ proto/",
+    "proto:js": "grpc_tools_node_protoc --js_out=import_style=commonjs,binary:proto/ --grpc_out=proto/ --plugin=protoc-gen-grpc=node_modules/.bin/grpc_tools_node_protoc_plugin -I ../proto ../proto/*.proto",
+    "proto:ts": "grpc_tools_node_protoc --plugin=protoc-gen-ts=./node_modules/.bin/protoc-gen-ts --ts_out=proto/ -I ../proto ../proto/*.proto",
+    "proto": "mkdirp proto && npm run proto:js && npm run proto:ts",
+    "compile": "tsc",
+    "build": "npm run proto && npm run compile",
+    "launch": "node lib/main.js",
+    "start": "npm run build && npm run launch"
+  },
+  "dependencies": {
+    "dotenv": "8.2.0",
+    "grpc": "1.24.2",
+    "google-protobuf": "3.11.4"
+  },
+  "devDependencies": {
+    "@types/google-protobuf": "3.7.2",
+    "@types/node": "13.13.5",
+    "grpc-tools": "1.8.1",
+    "grpc_tools_node_protoc_ts": "3.0.0",
+    "mkdirp": "1.0.4",
+    "prettier": "2.0.5",
+    "rimraf": "3.0.2",
+    "typescript": "3.8.3"
+  }
+}

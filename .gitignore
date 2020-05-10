@@ -1,0 +1,4 @@
+client/lib/
+client/node_modules/
+client/proto/
+server/target/
