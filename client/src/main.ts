@@ -1,23 +1,23 @@
-import dotenv from "dotenv";
+import { config } from "dotenv";
 
-dotenv.config();
+config();
 
 import { promisify } from "util";
 import grpc from "grpc";
-import { GreeterClient } from "../proto/helloworld_grpc_pb";
-import { HelloRequest, HelloReply } from "../proto/helloworld_pb";
+import { ChecklistClient } from "../proto/checklist_grpc_pb";
+import { AddTodoRequest, AddTodoReply } from "../proto/checklist_pb";
 
 async function main() {
-  const greeter = new GreeterClient(<string>process.env.SOCKET_ADDR, grpc.credentials.createInsecure());
+  const checklist = new ChecklistClient(<string>process.env.SOCKET_ADDR, grpc.credentials.createInsecure());
 
-  const request = new HelloRequest();
+  const request = new AddTodoRequest();
   request.setName("wat");
 
-  const sayHello = promisify(greeter.sayHello.bind(greeter));
+  const addTodo = promisify(checklist.addTodo.bind(checklist));
 
   try {
-    const reply = <HelloReply>await sayHello(request);
-    console.log("Greeting:", reply.getMessage());
+    const reply = <AddTodoReply>await addTodo(request);
+    console.log({ id: reply.getId(), name: reply.getName() });
   } catch (error) {
     console.error(error);
   }

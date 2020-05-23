@@ -2,17 +2,20 @@
 name = "grpc-starter-server"
 version = "1.0.0"
 license = "MIT OR Apache-2.0"
-author = "Lucas Vasilakopoulos <lucasyvas@gmail.com>"
+authors = ["Lucas Vasilakopoulos <lucasyvas@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-anyhow = "1.0.28"
+anyhow = "1.0.31"
+async-trait = "0.1.31"
 dotenv = "0.15.0"
 env_logger = "0.7.1"
 log = "0.4.8"
 prost = "0.6.1"
+sqlx = { version = "0.3", default-features = false, features = [ "runtime-tokio", "macros", "sqlite" ] }
 tonic = "0.2.1"
-tokio = { version = "0.2.20", features = ["macros"] }
+tokio = { version = "0.2.21", features = ["macros"] }
+uuid = { version = "0.8.1", features = ["v4"] }
 
 [build-dependencies]
 tonic-build = "0.2.0"

@@ -2,44 +2,29 @@
 #![deny(warnings)]
 #![warn(clippy::all)]
 
+mod checklist;
+
 use anyhow::Result;
 use dotenv::dotenv;
-use hello_world::greeter_server::{Greeter, GreeterServer};
-use hello_world::{HelloReply, HelloRequest};
+#[cfg(not(test))]
+use sqlx::SqlitePool;
 use std::env;
-use std::net::SocketAddr;
-use tonic::{transport::Server, Request, Response, Status};
-
-pub mod hello_world {
-    tonic::include_proto!("helloworld");
-}
-
-#[derive(Debug, Default)]
-pub struct GreeterService {}
-
-#[tonic::async_trait]
-impl Greeter for GreeterService {
-    async fn say_hello(
-        &self,
-        request: Request<HelloRequest>,
-    ) -> Result<Response<HelloReply>, Status> {
-        println!("Got a request: {:?}", request);
-
-        let reply = hello_world::HelloReply {
-            message: format!("Hello {}!", request.into_inner().name).into(),
-        };
-
-        Ok(Response::new(reply))
-    }
-}
+#[cfg(not(test))]
+use std::sync::Arc;
+use tonic::transport::Server;
 
 async fn run() -> Result<()> {
-    let addr: SocketAddr = env::var("SOCKET_ADDR")?.parse()?;
-    let greeter = GreeterService::default();
+    #[cfg(not(test))]
+    let pool = Arc::new(SqlitePool::builder().min_size(1).build("sqlite:").await?);
+
+    #[rustfmt::skip]
+    let checklist_model = checklist::model::Model::new(#[cfg(not(test))]pool.clone());
+    let checklist_service = checklist::service::Service::new(checklist_model.clone());
+    let checklist_router = checklist::router::Router::new(checklist_service.clone());
 
     Server::builder()
-        .add_service(GreeterServer::new(greeter))
-        .serve(addr)
+        .add_service(checklist_router)
+        .serve(env::var("SOCKET_ADDR")?.parse()?)
         .await?;
 
     Ok(())
