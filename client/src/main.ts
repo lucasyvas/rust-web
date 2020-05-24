@@ -11,7 +11,7 @@ async function main() {
   const checklist = new ChecklistClient(<string>process.env.SOCKET_ADDR, grpc.credentials.createInsecure());
 
   const request = new AddTodoRequest();
-  request.setName("wat");
+  request.setName("Get groceries");
 
   const addTodo = promisify(checklist.addTodo.bind(checklist));
 
