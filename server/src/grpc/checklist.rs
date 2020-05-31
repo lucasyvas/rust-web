@@ -6,27 +6,30 @@ use super::super::core::checklist::service::Service;
 use checklist::checklist_server::{Checklist, ChecklistServer};
 use checklist::{AddTodoReply, AddTodoRequest};
 use std::sync::Arc;
+use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
 
 #[derive(Debug)]
-pub struct Router {
-    service: Arc<Service>,
+pub struct Controller {
+    service: Arc<Mutex<Service>>,
 }
 
-impl Router {
-    pub fn new(service: Arc<Service>) -> ChecklistServer<Router> {
-        ChecklistServer::new(Router { service })
+impl Controller {
+    pub fn new(service: Arc<Mutex<Service>>) -> ChecklistServer<Controller> {
+        ChecklistServer::new(Controller { service })
     }
 }
 
 #[tonic::async_trait]
-impl Checklist for Router {
+impl Checklist for Controller {
     async fn add_todo(
         &self,
         request: Request<AddTodoRequest>,
     ) -> Result<Response<AddTodoReply>, Status> {
         let todo = self
             .service
+            .lock()
+            .await
             .add_todo(request.into_inner().name.as_ref())
             .await;
 
