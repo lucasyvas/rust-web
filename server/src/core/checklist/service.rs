@@ -1,7 +1,7 @@
-use super::model::{Model, Todo};
+use super::model::{Model, Todo, TodoList};
 use anyhow::Result;
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use uuid::Uuid;
 
 #[derive(Debug)]
 pub struct Service {
@@ -9,12 +9,16 @@ pub struct Service {
 }
 
 impl Service {
-    pub fn new(model: Model) -> Arc<Mutex<Service>> {
-        Arc::new(Mutex::new(Service { model }))
+    pub fn new(model: Model) -> Arc<Service> {
+        Arc::new(Service { model })
     }
 
-    pub async fn add_todo(&mut self, name: &str) -> Result<Todo> {
-        Ok(self.model.create_todo(name).await?)
+    pub async fn add_list(&self, id: &Option<&Uuid>, name: &str) -> Result<TodoList> {
+        Ok(self.model.create_list(id, name).await?)
+    }
+
+    pub async fn add_todo(&self, list_id: &Uuid, description: &str) -> Result<Todo> {
+        Ok(self.model.create_todo(list_id, description).await?)
     }
 }
 
@@ -22,11 +26,14 @@ impl Service {
 mod tests {
     use super::super::super::database;
     use super::*;
+    use dotenv::dotenv;
+    use pretty_assertions::assert_eq;
     use std::env;
 
     async fn setup() -> Result<Arc<database::Pool>> {
-        let mut pool = database::create_pool(&env::var("DATABASE_URL")?).await?;
-        database::create_schema(Arc::make_mut(&mut pool)).await?;
+        dotenv().ok();
+        let pool = database::create_pool(&env::var("DATABASE_URL")?).await?;
+        database::create_schema(&pool).await?;
         Ok(pool)
     }
 
@@ -35,18 +42,35 @@ mod tests {
         Ok(Model::new(pool.clone()))
     }
 
-    async fn create_service() -> Result<Arc<Mutex<Service>>> {
+    async fn create_service() -> Result<Arc<Service>> {
         Ok(Service::new(create_model().await?))
+    }
+
+    #[tokio::test]
+    async fn add_list() -> Result<()> {
+        let service = create_service().await?;
+
+        let list_id = Uuid::new_v4();
+        let list_name = "new_list";
+        let list = service.add_list(&Some(&list_id), &list_name).await?;
+
+        assert_eq!(list.id, list_id);
+        assert_eq!(list.name, list_name);
+
+        Ok(())
     }
 
     #[tokio::test]
     async fn add_todo() -> Result<()> {
         let service = create_service().await?;
 
-        let todo_name = "new_todo";
-        let todo = service.lock().await.add_todo(&todo_name).await?;
+        let list_id = Uuid::new_v4();
+        let todo_description = "new_todo";
+        let todo = service.add_todo(&list_id, &todo_description).await?;
 
-        assert_eq!(todo.name, todo_name);
+        assert_eq!(todo.list_id, list_id);
+        assert_eq!(todo.description, todo_description);
+        assert_eq!(todo.done, false);
 
         Ok(())
     }

@@ -23,7 +23,14 @@ pub struct NewTodo {
 pub struct Query;
 
 #[juniper::graphql_object(Context = Context)]
-impl Query {}
+impl Query {
+    async fn todo(_context: &Context, id: String) -> FieldResult<Todo> {
+        Ok(Todo {
+            id,
+            name: "test".to_string(),
+        })
+    }
+}
 
 #[derive(Debug)]
 pub struct Mutation;

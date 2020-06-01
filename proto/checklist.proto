@@ -1,11 +1,26 @@
 syntax = "proto3";
 package checklist;
 
-service Checklist { rpc AddTodo(AddTodoRequest) returns (AddTodoReply); }
+service Checklist {
+  rpc AddList(AddListRequest) returns (ListReply);
+  rpc AddTodo(AddTodoRequest) returns (TodoReply);
+}
 
-message AddTodoRequest { string name = 1; }
+message AddListRequest { string name = 1; }
 
-message AddTodoReply {
+message AddTodoRequest {
+  string list_id = 1;
+  string description = 2;
+}
+
+message ListReply {
   string id = 1;
   string name = 2;
+}
+
+message TodoReply {
+  string list_id = 1;
+  string id = 2;
+  string description = 3;
+  bool done = 4;
 }
