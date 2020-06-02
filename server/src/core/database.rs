@@ -1,4 +1,5 @@
 use anyhow::Result;
+use sqlx::PgPool;
 use std::sync::Arc;
 
 const CREATE_LISTS_TABLE: &str = "
@@ -17,15 +18,13 @@ const CREATE_TODOS_TABLE: &str = "
   );
 ";
 
-pub type Pool = sqlx::PgPool;
-
-pub async fn create_pool(database_url: &str) -> Result<Arc<Pool>> {
+pub async fn create_pool(database_url: &str) -> Result<Arc<PgPool>> {
     Ok(Arc::new(
-        Pool::builder().min_size(1).build(&database_url).await?,
+        PgPool::builder().min_size(1).build(&database_url).await?,
     ))
 }
 
-pub async fn create_schema(pool: &Pool) -> Result<()> {
+pub async fn create_schema(pool: &PgPool) -> Result<()> {
     sqlx::query(CREATE_LISTS_TABLE).execute(pool).await?;
     sqlx::query(CREATE_TODOS_TABLE).execute(pool).await?;
     Ok(())

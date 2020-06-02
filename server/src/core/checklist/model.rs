@@ -1,5 +1,6 @@
-use super::super::database;
-use anyhow::Result;
+use super::super::common::model::Error as ModelError;
+use anyhow::{Error, Result};
+use sqlx::{Error::Database as DatabaseError, PgPool};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -29,17 +30,17 @@ pub struct Todo {
 
 #[derive(Debug)]
 pub struct Model {
-    pool: Arc<database::Pool>,
+    pool: Arc<PgPool>,
 }
 
 impl Model {
-    pub fn new(pool: Arc<database::Pool>) -> Model {
+    pub fn new(pool: Arc<PgPool>) -> Model {
         Model { pool }
     }
 
     pub async fn create_list(&self, id: &Option<&Uuid>, name: &str) -> Result<TodoList> {
         let id = match *id {
-            Some(list_id) => list_id.to_owned(),
+            Some(id) => id.to_owned(),
             None => Uuid::new_v4(),
         };
 
@@ -48,13 +49,33 @@ impl Model {
             name: name.to_string(),
         };
 
-        sqlx::query(INSERT_LIST)
+        let result = sqlx::query(INSERT_LIST)
             .bind(&list.id.to_hyphenated().to_string())
             .bind(&list.name)
             .execute(self.pool.as_ref())
-            .await?;
+            .await;
 
-        Ok(list)
+        let error = match result {
+            Ok(_) => return Ok(list),
+            Err(error) => error,
+        };
+
+        let database_error = match &error {
+            DatabaseError(error) => error,
+            _ => return Err(Error::new(ModelError::Sqlx(error))),
+        };
+
+        let error_code = match database_error.code() {
+            None => return Err(Error::new(ModelError::Sqlx(error))),
+            Some(code) => code,
+        };
+
+        let model_error = match error_code {
+            "23505" => ModelError::Conflict(id),
+            _ => ModelError::Sqlx(error),
+        };
+
+        Err(Error::new(model_error))
     }
 
     pub async fn create_todo(&self, list_id: &Uuid, description: &str) -> Result<Todo> {
@@ -79,13 +100,14 @@ impl Model {
 
 #[cfg(test)]
 mod tests {
+    use super::super::super::database;
     use super::*;
     use dotenv::dotenv;
     use pretty_assertions::assert_eq;
     use std::env;
     use std::sync::Arc;
 
-    async fn setup() -> Result<Arc<database::Pool>> {
+    async fn setup() -> Result<Arc<PgPool>> {
         dotenv().ok();
         let pool = database::create_pool(&env::var("DATABASE_URL")?).await?;
         database::create_schema(&pool).await?;

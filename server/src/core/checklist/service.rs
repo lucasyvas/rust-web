@@ -28,9 +28,10 @@ mod tests {
     use super::*;
     use dotenv::dotenv;
     use pretty_assertions::assert_eq;
+    use sqlx::PgPool;
     use std::env;
 
-    async fn setup() -> Result<Arc<database::Pool>> {
+    async fn setup() -> Result<Arc<PgPool>> {
         dotenv().ok();
         let pool = database::create_pool(&env::var("DATABASE_URL")?).await?;
         database::create_schema(&pool).await?;

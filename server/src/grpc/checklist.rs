@@ -33,7 +33,7 @@ impl Checklist for Controller {
         let list = match list {
             Err(err) => {
                 println!("{:?}", err);
-                return Err(Status::new(tonic::Code::Internal, "Add List Error"));
+                return Err(Status::new(tonic::Code::Internal, err.to_string()));
             }
             Ok(list) => ListReply {
                 id: list.id.to_hyphenated().to_string(),
@@ -60,7 +60,7 @@ impl Checklist for Controller {
         let todo = match todo {
             Err(err) => {
                 println!("{:?}", err);
-                return Err(Status::new(tonic::Code::Internal, "Add Todo Error"));
+                return Err(Status::new(tonic::Code::Internal, err.to_string()));
             }
             Ok(todo) => TodoReply {
                 list_id: todo.list_id.to_hyphenated().to_string(),
