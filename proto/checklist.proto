@@ -3,15 +3,29 @@ package checklist;
 
 service Checklist {
   rpc AddList(AddListRequest) returns (ListReply);
+  rpc GetList(GetListRequest) returns (ListReply);
+  rpc UpdateList(UpdateListRequest) returns (ListReply);
+  rpc RemoveList(RemoveListRequest) returns (EmptyReply);
   rpc AddTodo(AddTodoRequest) returns (TodoReply);
 }
 
 message AddListRequest { string name = 1; }
 
+message GetListRequest { string id = 1; }
+
+message UpdateListRequest {
+  string id = 1;
+  string name = 2;
+}
+
+message RemoveListRequest { string id = 1; }
+
 message AddTodoRequest {
   string list_id = 1;
   string description = 2;
 }
+
+message EmptyReply {}
 
 message ListReply {
   string id = 1;

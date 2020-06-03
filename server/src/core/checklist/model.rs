@@ -1,6 +1,8 @@
 use super::super::common::model::Error as ModelError;
+use super::super::database;
 use anyhow::{Error, Result};
-use sqlx::{Error::Database as DatabaseError, PgPool};
+use database::ErrorCode as DatabaseErrorCode;
+use sqlx::{postgres::PgQueryAs, Error as SqlxError, PgPool};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -9,18 +11,36 @@ const INSERT_LIST: &str = "
   VALUES ($1, $2);
 ";
 
+const SELECT_LIST: &str = "
+  SELECT id, name FROM lists
+  WHERE id = $1;
+";
+
+const UPDATE_LIST: &str = "
+  UPDATE lists
+  SET name = $2
+  WHERE id = $1
+  RETURNING id, name;
+";
+
+const DELETE_LIST: &str = "
+  DELETE FROM lists
+  WHERE id = $1
+  RETURNING id;
+";
+
 const INSERT_TODO: &str = "
   INSERT INTO todos (list_id, id, description, done)
   VALUES ($1, $2, $3, $4);
 ";
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug)]
 pub struct TodoList {
     pub id: Uuid,
     pub name: String,
 }
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug)]
 pub struct Todo {
     pub list_id: Uuid,
     pub id: Uuid,
@@ -57,25 +77,89 @@ impl Model {
 
         let error = match result {
             Ok(_) => return Ok(list),
-            Err(error) => error,
+            Err(err) => err,
         };
 
         let database_error = match &error {
-            DatabaseError(error) => error,
-            _ => return Err(Error::new(ModelError::Sqlx(error))),
+            SqlxError::Database(error) => error,
+            _ => return Err(Error::new(error)),
         };
 
         let error_code = match database_error.code() {
-            None => return Err(Error::new(ModelError::Sqlx(error))),
+            None => return Err(Error::new(error)),
             Some(code) => code,
         };
 
-        let model_error = match error_code {
-            "23505" => ModelError::Conflict(id),
-            _ => ModelError::Sqlx(error),
+        match error_code {
+            DatabaseErrorCode::UniqueViolation => return Err(Error::new(ModelError::Conflict(id))),
+            _ => return Err(Error::new(error)),
+        };
+    }
+
+    pub async fn get_list(&self, id: &Uuid) -> Result<TodoList> {
+        let result = sqlx::query_as::<_, (String, String)>(SELECT_LIST)
+            .bind(id.to_hyphenated().to_string())
+            .fetch_one(self.pool.as_ref())
+            .await;
+
+        let row = match result {
+            Err(err) => match err {
+                SqlxError::RowNotFound => {
+                    return Err(Error::new(ModelError::NotFound(id.to_owned())))
+                }
+                _ => return Err(Error::new(err)),
+            },
+            Ok(row) => row,
         };
 
-        Err(Error::new(model_error))
+        let list = TodoList {
+            id: Uuid::parse_str(row.0.as_ref())?,
+            name: row.1,
+        };
+
+        Ok(list)
+    }
+
+    pub async fn update_list(&self, id: &Uuid, name: &str) -> Result<TodoList> {
+        let result = sqlx::query_as::<_, (String, String)>(UPDATE_LIST)
+            .bind(id.to_hyphenated().to_string())
+            .bind(name)
+            .fetch_one(self.pool.as_ref())
+            .await;
+
+        let row = match result {
+            Err(err) => match err {
+                SqlxError::RowNotFound => {
+                    return Err(Error::new(ModelError::NotFound(id.to_owned())))
+                }
+                _ => return Err(Error::new(err)),
+            },
+            Ok(row) => row,
+        };
+
+        let list = TodoList {
+            id: Uuid::parse_str(row.0.as_ref())?,
+            name: row.1,
+        };
+
+        Ok(list)
+    }
+
+    pub async fn destroy_list(&self, id: &Uuid) -> Result<()> {
+        let result = sqlx::query_as::<_, (String,)>(DELETE_LIST)
+            .bind(&id.to_hyphenated().to_string())
+            .fetch_one(self.pool.as_ref())
+            .await;
+
+        let error = match result {
+            Ok(_) => return Ok(()),
+            Err(err) => err,
+        };
+
+        match error {
+            SqlxError::RowNotFound => return Err(Error::new(ModelError::NotFound(id.to_owned()))),
+            _ => return Err(Error::new(error)),
+        };
     }
 
     pub async fn create_todo(&self, list_id: &Uuid, description: &str) -> Result<Todo> {
@@ -86,21 +170,43 @@ impl Model {
             done: false,
         };
 
-        sqlx::query(INSERT_TODO)
+        let result = sqlx::query(INSERT_TODO)
             .bind(&todo.list_id.to_hyphenated().to_string())
             .bind(&todo.id.to_hyphenated().to_string())
             .bind(&todo.description)
             .bind(&todo.done)
             .execute(self.pool.as_ref())
-            .await?;
+            .await;
 
-        Ok(todo)
+        let error = match result {
+            Ok(_) => return Ok(todo),
+            Err(err) => err,
+        };
+
+        let database_error = match &error {
+            SqlxError::Database(err) => err,
+            _ => return Err(Error::new(error)),
+        };
+
+        let error_code = match database_error.code() {
+            None => return Err(Error::new(error)),
+            Some(code) => code,
+        };
+
+        match error_code {
+            DatabaseErrorCode::ForeignKeyViolation => {
+                return Err(Error::new(ModelError::Validation(format!(
+                    "list ID '{}' not in collection",
+                    list_id
+                ))))
+            }
+            _ => return Err(Error::new(error)),
+        };
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::super::super::database;
     use super::*;
     use dotenv::dotenv;
     use pretty_assertions::assert_eq;

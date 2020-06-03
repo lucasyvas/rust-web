@@ -4,7 +4,12 @@ mod checklist {
 
 use super::super::core::checklist::service::Service;
 use checklist::checklist_server::{Checklist, ChecklistServer};
-use checklist::{AddListRequest, AddTodoRequest, ListReply, TodoReply};
+
+use checklist::{
+    AddListRequest, AddTodoRequest, EmptyReply, GetListRequest, ListReply, RemoveListRequest,
+    TodoReply, UpdateListRequest,
+};
+
 use std::sync::Arc;
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
@@ -42,6 +47,93 @@ impl Checklist for Controller {
         };
 
         Ok(Response::new(list))
+    }
+
+    async fn get_list(
+        &self,
+        request: Request<GetListRequest>,
+    ) -> Result<Response<ListReply>, Status> {
+        let id = request.into_inner().id;
+
+        let id = match Uuid::parse_str(id.as_ref()) {
+            Err(_) => {
+                return Err(Status::new(
+                    tonic::Code::InvalidArgument,
+                    format!("ID '{}' is invalid", id),
+                ))
+            }
+            Ok(id) => id,
+        };
+
+        let list = self.service.get_list(&id).await;
+
+        let list = match list {
+            Err(err) => {
+                println!("{:?}", err);
+                return Err(Status::new(tonic::Code::Internal, err.to_string()));
+            }
+            Ok(list) => ListReply {
+                id: list.id.to_hyphenated().to_string(),
+                name: list.name,
+            },
+        };
+
+        Ok(Response::new(list))
+    }
+
+    async fn update_list(
+        &self,
+        request: Request<UpdateListRequest>,
+    ) -> Result<Response<ListReply>, Status> {
+        let UpdateListRequest { id, name } = request.into_inner();
+
+        let id = match Uuid::parse_str(id.as_ref()) {
+            Err(_) => {
+                return Err(Status::new(
+                    tonic::Code::InvalidArgument,
+                    format!("ID '{}' is invalid", id),
+                ))
+            }
+            Ok(id) => id,
+        };
+
+        let list = self.service.update_list(&id, &name).await;
+
+        let list = match list {
+            Err(err) => {
+                println!("{:?}", err);
+                return Err(Status::new(tonic::Code::Internal, err.to_string()));
+            }
+            Ok(list) => ListReply {
+                id: list.id.to_hyphenated().to_string(),
+                name: list.name,
+            },
+        };
+
+        Ok(Response::new(list))
+    }
+
+    async fn remove_list(
+        &self,
+        request: Request<RemoveListRequest>,
+    ) -> Result<Response<EmptyReply>, Status> {
+        let id = request.into_inner().id;
+
+        let id = match Uuid::parse_str(id.as_ref()) {
+            Err(_) => {
+                return Err(Status::new(
+                    tonic::Code::InvalidArgument,
+                    format!("ID '{}' is invalid", id),
+                ))
+            }
+            Ok(id) => id,
+        };
+
+        if let Err(err) = self.service.remove_list(&id).await {
+            return Err(Status::new(tonic::Code::Internal, err.to_string()));
+        }
+
+        Ok(Response::new(EmptyReply {}))
     }
 
     async fn add_todo(

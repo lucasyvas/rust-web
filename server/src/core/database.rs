@@ -12,11 +12,19 @@ const CREATE_LISTS_TABLE: &str = "
 const CREATE_TODOS_TABLE: &str = "
   CREATE TABLE IF NOT EXISTS todos (
     id CHAR(36) PRIMARY KEY NOT NULL,
-    list_id CHAR(36) NOT NULL,
+    list_id CHAR(36) NOT NULL REFERENCES lists ON DELETE CASCADE,
     description TEXT NOT NULL,
-    done BOOLEAN NOT NULL
+    done BOOLEAN NOT NULL,
+    FOREIGN KEY (list_id) REFERENCES lists (id)
   );
 ";
+
+#[allow(non_snake_case)]
+#[allow(non_upper_case_globals)]
+pub mod ErrorCode {
+    pub const ForeignKeyViolation: &str = "23503";
+    pub const UniqueViolation: &str = "23505";
+}
 
 pub async fn create_pool(database_url: &str) -> Result<Arc<PgPool>> {
     Ok(Arc::new(

@@ -8,6 +8,8 @@ pub enum Error {
     Conflict(Uuid),
     #[error("'{0}' not found in collection")]
     NotFound(Uuid),
+    #[error("{0}")]
+    Validation(String),
     #[error("sqlx error")]
     Sqlx(#[from] sqlx::Error),
 }

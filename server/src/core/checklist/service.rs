@@ -17,6 +17,19 @@ impl Service {
         Ok(self.model.create_list(id, name).await?)
     }
 
+    pub async fn get_list(&self, id: &Uuid) -> Result<TodoList> {
+        Ok(self.model.get_list(id).await?)
+    }
+
+    pub async fn update_list(&self, id: &Uuid, name: &str) -> Result<TodoList> {
+        Ok(self.model.update_list(id, name).await?)
+    }
+
+    pub async fn remove_list(&self, id: &Uuid) -> Result<()> {
+        self.model.destroy_list(id).await?;
+        Ok(())
+    }
+
     pub async fn add_todo(&self, list_id: &Uuid, description: &str) -> Result<Todo> {
         Ok(self.model.create_todo(list_id, description).await?)
     }
