@@ -1,5 +1,8 @@
+use super::super::common;
 use super::model::{Model, Todo, TodoList};
-use anyhow::Result;
+use anyhow::{Error, Result};
+use common::model::Error as ModelError;
+use common::service::Error as ServiceError;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -14,24 +17,71 @@ impl Service {
     }
 
     pub async fn add_list(&self, id: &Option<&Uuid>, name: &str) -> Result<TodoList> {
-        Ok(self.model.create_list(id, name).await?)
+        let result = self.model.create_list(id, name).await;
+
+        match result {
+            Ok(list) => return Ok(list),
+            Err(err) => return Err(create_conflict_error(err)),
+        };
     }
 
     pub async fn get_list(&self, id: &Uuid) -> Result<TodoList> {
-        Ok(self.model.get_list(id).await?)
+        let result = self.model.get_list(id).await;
+
+        match result {
+            Ok(list) => return Ok(list),
+            Err(err) => return Err(create_not_found_error(err)),
+        };
     }
 
     pub async fn update_list(&self, id: &Uuid, name: &str) -> Result<TodoList> {
-        Ok(self.model.update_list(id, name).await?)
+        let result = self.model.update_list(id, name).await;
+
+        match result {
+            Ok(list) => return Ok(list),
+            Err(err) => return Err(create_not_found_error(err)),
+        };
     }
 
     pub async fn remove_list(&self, id: &Uuid) -> Result<()> {
-        self.model.destroy_list(id).await?;
-        Ok(())
+        let result = self.model.destroy_list(id).await;
+
+        match result {
+            Ok(list) => return Ok(list),
+            Err(err) => return Err(create_not_found_error(err)),
+        };
     }
 
     pub async fn add_todo(&self, list_id: &Uuid, description: &str) -> Result<Todo> {
-        Ok(self.model.create_todo(list_id, description).await?)
+        let result = self.model.create_todo(list_id, description).await;
+
+        match result {
+            Ok(todo) => return Ok(todo),
+            Err(err) => return Err(create_validation_error(err)),
+        };
+    }
+}
+
+fn create_conflict_error(error: Error) -> Error {
+    match error.downcast_ref::<ModelError>() {
+        Some(ModelError::Conflict(id)) => return Error::new(ServiceError::Conflict(*id)),
+        _ => return error,
+    }
+}
+
+fn create_not_found_error(error: Error) -> Error {
+    match error.downcast_ref::<ModelError>() {
+        Some(ModelError::NotFound(id)) => return Error::new(ServiceError::NotFound(*id)),
+        _ => return error,
+    }
+}
+
+fn create_validation_error(error: Error) -> Error {
+    match error.downcast_ref::<ModelError>() {
+        Some(ModelError::Validation(msg)) => {
+            return Error::new(ServiceError::Validation(msg.to_string()))
+        }
+        _ => return error,
     }
 }
 

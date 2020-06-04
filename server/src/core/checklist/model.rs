@@ -80,17 +80,12 @@ impl Model {
             Err(err) => err,
         };
 
-        let database_error = match &error {
-            SqlxError::Database(error) => error,
-            _ => return Err(Error::new(error)),
+        let error_code = match extract_database_error_code(&error) {
+            Err(_) => return Err(Error::new(error)),
+            Ok(code) => code,
         };
 
-        let error_code = match database_error.code() {
-            None => return Err(Error::new(error)),
-            Some(code) => code,
-        };
-
-        match error_code {
+        match error_code.as_ref() {
             DatabaseErrorCode::UniqueViolation => return Err(Error::new(ModelError::Conflict(id))),
             _ => return Err(Error::new(error)),
         };
@@ -103,19 +98,11 @@ impl Model {
             .await;
 
         let row = match result {
-            Err(err) => match err {
-                SqlxError::RowNotFound => {
-                    return Err(Error::new(ModelError::NotFound(id.to_owned())))
-                }
-                _ => return Err(Error::new(err)),
-            },
+            Err(err) => return Err(create_not_found_error(err, id)),
             Ok(row) => row,
         };
 
-        let list = TodoList {
-            id: Uuid::parse_str(row.0.as_ref())?,
-            name: row.1,
-        };
+        let list = create_list_from_row(row)?;
 
         Ok(list)
     }
@@ -128,19 +115,11 @@ impl Model {
             .await;
 
         let row = match result {
-            Err(err) => match err {
-                SqlxError::RowNotFound => {
-                    return Err(Error::new(ModelError::NotFound(id.to_owned())))
-                }
-                _ => return Err(Error::new(err)),
-            },
+            Err(err) => return Err(create_not_found_error(err, id)),
             Ok(row) => row,
         };
 
-        let list = TodoList {
-            id: Uuid::parse_str(row.0.as_ref())?,
-            name: row.1,
-        };
+        let list = create_list_from_row(row)?;
 
         Ok(list)
     }
@@ -151,14 +130,9 @@ impl Model {
             .fetch_one(self.pool.as_ref())
             .await;
 
-        let error = match result {
+        match result {
             Ok(_) => return Ok(()),
-            Err(err) => err,
-        };
-
-        match error {
-            SqlxError::RowNotFound => return Err(Error::new(ModelError::NotFound(id.to_owned()))),
-            _ => return Err(Error::new(error)),
+            Err(err) => return Err(create_not_found_error(err, id)),
         };
     }
 
@@ -183,17 +157,12 @@ impl Model {
             Err(err) => err,
         };
 
-        let database_error = match &error {
-            SqlxError::Database(err) => err,
-            _ => return Err(Error::new(error)),
+        let error_code = match extract_database_error_code(&error) {
+            Err(_) => return Err(Error::new(error)),
+            Ok(code) => code,
         };
 
-        let error_code = match database_error.code() {
-            None => return Err(Error::new(error)),
-            Some(code) => code,
-        };
-
-        match error_code {
+        match error_code.as_ref() {
             DatabaseErrorCode::ForeignKeyViolation => {
                 return Err(Error::new(ModelError::Validation(format!(
                     "list ID '{}' not in collection",
@@ -203,6 +172,34 @@ impl Model {
             _ => return Err(Error::new(error)),
         };
     }
+}
+
+fn create_list_from_row(row: (String, String)) -> Result<TodoList> {
+    let list = TodoList {
+        id: Uuid::parse_str(row.0.as_ref())?,
+        name: row.1,
+    };
+
+    Ok(list)
+}
+
+fn create_not_found_error(error: SqlxError, id: &Uuid) -> Error {
+    match error {
+        SqlxError::RowNotFound => return Error::new(ModelError::NotFound(id.to_owned())),
+        _ => return Error::new(error),
+    }
+}
+
+fn extract_database_error_code(error: &SqlxError) -> std::result::Result<String, &SqlxError> {
+    let database_error = match error {
+        SqlxError::Database(err) => err,
+        _ => return Err(error),
+    };
+
+    match database_error.code() {
+        None => return Err(error),
+        Some(code) => return Ok(code.to_string()),
+    };
 }
 
 #[cfg(test)]

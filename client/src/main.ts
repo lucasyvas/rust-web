@@ -71,7 +71,7 @@ async function addTodo(client: ChecklistClient, listId: string, description: str
   return { listId: reply.getListId(), id: reply.getId(), description: reply.getDescription(), done: reply.getDone() };
 }
 
-async function main() {
+async function run() {
   const checklistClient = new ChecklistClient(<string>process.env.SOCKET_ADDR, grpc.credentials.createInsecure());
 
   // "79e1ad60-a0be-43c3-995b-2451f5b83ed7"
@@ -81,6 +81,14 @@ async function main() {
   await updateList(checklistClient, list.id, "jabroni");
   await addTodo(checklistClient, list.id, "Get groceries");
   await removeList(checklistClient, list.id);
+}
+
+async function main() {
+  try {
+    await run();
+  } catch ({ code, details }) {
+    console.error({ code, details });
+  }
 }
 
 main();
